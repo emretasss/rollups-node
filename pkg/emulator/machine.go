@@ -90,18 +90,25 @@ func (machine *Machine) Run(mcycleEnd uint64) (BreakReason, error) {
 	return (BreakReason)(reason), nil
 }
 
-func (machine *Machine) GetRootHash() (*MerkleTreeHash, error) {
+func (machine *Machine) GetRootHash() (hash MerkleTreeHash, _ error) {
 	var msg *C.char
 	var chash C.cm_hash
 	code := C.cm_get_root_hash(machine.c, &chash, &msg)
 	if err := newError(code, msg); err != nil {
-		return nil, err
+		return hash, err
 	}
-	hash := &MerkleTreeHash{}
+
 	for i := 0; i < 32; i++ {
 		hash[i] = byte(chash[i])
 	}
 	return hash, nil
+}
+
+func (machine Machine) ReadMCycle() (uint64, error) {
+	var msg *C.char
+	var value C.uint64_t
+	code := C.cm_read_mcycle(machine.c, &value, &msg)
+	return uint64(value), newError(code, msg)
 }
 
 func (machine *Machine) ReplaceMemoryRange(newRange *MemoryRangeConfig) error {
@@ -220,5 +227,18 @@ func (machine *Machine) ReadIFlagsH() (bool, error) {
 func (machine *Machine) SetIFlagsH() error {
 	var msg *C.char
 	code := C.cm_set_iflags_H(machine.c, &msg)
+	return newError(code, msg)
+}
+
+func (machine *Machine) ReadHtifToHostData() (uint64, error) {
+	var msg *C.char
+	var value C.uint64_t
+	code := C.cm_read_htif_tohost_data(machine.c, &value, &msg)
+	return uint64(value), newError(code, msg)
+}
+
+func (machine *Machine) WriteHtifFromHostData(value uint64) error {
+	var msg *C.char
+	code := C.cm_write_htif_fromhost_data(machine.c, C.uint64_t(value), &msg)
 	return newError(code, msg)
 }
