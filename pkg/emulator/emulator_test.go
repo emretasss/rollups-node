@@ -17,7 +17,7 @@ import (
 )
 
 func TestGetDefaultConfig(t *testing.T) {
-	cfg, err := GetDefaultConfig()
+	cfg, err := GetDefaultMachineConfig()
 	assert.Nil(t, err)
 	assert.NotNil(t, cfg)
 }
@@ -31,7 +31,7 @@ func TestNewLocalMachine(t *testing.T) {
 	cfg := makeMachineConfig()
 	runtimeConfig := &MachineRuntimeConfig{}
 	machine, err := NewMachine(cfg, runtimeConfig)
-	defer machine.Free()
+	defer machine.Delete()
 	assert.Nil(t, err)
 	assert.NotNil(t, machine)
 	sharedMachineTests(t, machine)
@@ -42,7 +42,7 @@ func TestReadWriteMemoryOnLocalMachine(t *testing.T) {
 	runtimeConfig := &MachineRuntimeConfig{}
 	machine, err := NewMachine(cfg, runtimeConfig)
 	assert.Nil(t, err)
-	defer machine.Free()
+	defer machine.Delete()
 	sharedTestReadWriteMemory(t, machine)
 }
 
@@ -56,7 +56,7 @@ func TestReadWriteMemoryOnRemoteMachine(t *testing.T) {
 	assert.NotNil(t, mgr)
 	defer func() {
 		mgr.Shutdown()
-		defer mgr.Free()
+		defer mgr.Delete()
 	}()
 	// create machine
 	cfg := makeMachineConfig()
@@ -66,7 +66,7 @@ func TestReadWriteMemoryOnRemoteMachine(t *testing.T) {
 	assert.NotNil(t, machine)
 	defer func() {
 		machine.Destroy()
-		machine.Free()
+		machine.Delete()
 	}()
 	sharedTestReadWriteMemory(t, machine)
 }
@@ -126,7 +126,7 @@ func TestRunLocalMachineHappyPath(t *testing.T) {
 	cfg := makeMachineConfig()
 	runtimeConfig := &MachineRuntimeConfig{}
 	machine, err := NewMachine(cfg, runtimeConfig)
-	defer machine.Free()
+	defer machine.Delete()
 	assert.Nil(t, err)
 	assert.NotNil(t, machine)
 	var iflagsH bool
@@ -181,7 +181,7 @@ func TestRunLocalMachineHappyPath(t *testing.T) {
 
 	// load a second machine from empDir, err := ioutil.TempDir("", "example")
 	machine2, err := LoadMachine(storePath, runtimeConfig)
-	defer machine2.Free()
+	defer machine2.Delete()
 	assert.Nil(t, err)
 	assert.NotNil(t, machine2)
 	var hashMachine2 *MerkleTreeHash
@@ -200,7 +200,7 @@ func TestNewRemoteMachine(t *testing.T) {
 	assert.NotNil(t, mgr)
 	defer func() {
 		mgr.Shutdown()
-		defer mgr.Free()
+		defer mgr.Delete()
 	}()
 	// create machine
 	cfg := makeMachineConfig()
@@ -210,7 +210,7 @@ func TestNewRemoteMachine(t *testing.T) {
 	assert.NotNil(t, machine)
 	defer func() {
 		machine.Destroy()
-		machine.Free()
+		machine.Delete()
 	}()
 	sharedMachineTests(t, machine)
 }
@@ -228,11 +228,11 @@ func TestRemoteMachineHappyPath(t *testing.T) {
 	assert.NotNil(t, mgr)
 	defer func() {
 		mgr.Shutdown()
-		defer mgr.Free()
+		defer mgr.Delete()
 	}()
 	// get default config from remote server
 	var remoteDefCfg *MachineConfig
-	remoteDefCfg, err = mgr.GetDefaultConfig()
+	remoteDefCfg, err = mgr.GetDefaultMachineConfig()
 	assert.Nil(t, err)
 	assert.NotNil(t, remoteDefCfg)
 
@@ -245,7 +245,7 @@ func TestRemoteMachineHappyPath(t *testing.T) {
 	assert.NotNil(t, machine)
 	defer func() {
 		machine.Destroy() // destroy machine from server
-		machine.Free()
+		machine.Delete()
 	}()
 	// assert initial machine state
 	var iflagsH bool
@@ -297,7 +297,7 @@ func TestRemoteMachineHappyPath(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotEqual(t, hashBefore.String(), finalHash.String()) // hash changed	 again
 	// fork the remote server
-	var secondRemoteAddress *string
+	var secondRemoteAddress string
 	secondRemoteAddress, err = mgr.Fork()
 	assert.Nil(t, err)
 	assert.NotEqual(t, remoteAddress, secondRemoteAddress)
@@ -305,7 +305,7 @@ func TestRemoteMachineHappyPath(t *testing.T) {
 	assert.NotEqual(t, remoteAddress, secondRemoteAddress)
 	// connect to the forked server
 	var mgr2 *RemoteMachineManager
-	mgr2, err = NewRemoteMachineManager(*secondRemoteAddress)
+	mgr2, err = NewRemoteMachineManager(secondRemoteAddress)
 	assert.Nil(t, err)
 	assert.NotNil(t, mgr2)
 	// Get forked machine
@@ -315,7 +315,7 @@ func TestRemoteMachineHappyPath(t *testing.T) {
 	assert.NotNil(t, forkedMachine)
 	defer func() {
 		forkedMachine.Destroy()
-		forkedMachine.Free()
+		forkedMachine.Delete()
 	}()
 	var forkedHash *MerkleTreeHash
 	forkedHash, err = forkedMachine.GetRootHash()
@@ -331,7 +331,7 @@ func TestRemoteMachineHappyPath(t *testing.T) {
 	assert.NotNil(t, loadedMachine)
 	defer func() {
 		loadedMachine.Destroy()
-		loadedMachine.Free()
+		loadedMachine.Delete()
 	}()
 	var loadedHash *MerkleTreeHash
 	loadedHash, err = loadedMachine.GetRootHash()
@@ -351,7 +351,7 @@ func TestSnapshot(t *testing.T) {
 	assert.NotNil(t, mgr)
 	defer func() {
 		mgr.Shutdown()
-		defer mgr.Free()
+		defer mgr.Delete()
 	}()
 	// create a machine
 	var machine *Machine
@@ -362,7 +362,7 @@ func TestSnapshot(t *testing.T) {
 	assert.NotNil(t, machine)
 	defer func() {
 		machine.Destroy()
-		machine.Free()
+		machine.Delete()
 	}()
 	// get current hash
 	var hashBefore *MerkleTreeHash
