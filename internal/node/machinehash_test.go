@@ -63,7 +63,7 @@ func (s *ValidateMachineHashSuite) TestItFailsWhenContextIsCanceled() {
 	err = validateMachineHash(
 		ctx,
 		machineDir,
-		addresses.GetTestBook().CartesiDApp.String(),
+		addresses.GetTestBook().Application.String(),
 		blockchainHttpEndpoint,
 	)
 	s.NotNil(err)
@@ -90,7 +90,7 @@ func (s *ValidateMachineHashSuite) TestItSucceedsWhenHashesAreEqual() {
 	err = validateMachineHash(
 		ctx,
 		machineDir,
-		addresses.GetTestBook().CartesiDApp.String(),
+		addresses.GetTestBook().Application.String(),
 		blockchainHttpEndpoint,
 	)
 	s.Nil(err)
