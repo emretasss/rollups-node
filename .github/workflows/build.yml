@@ -21,15 +21,46 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-22.04
+    container: 
+      image: ubuntu:23.10
     env:
       RUSTFLAGS: -D warnings -C debuginfo=0
     defaults:
       run:
         working-directory: offchain
     steps:
+
+      - name: Install Git
+        working-directory: .
+        run: su - && apt update &&  apt install -y git-all
+
+      - name: Install Docker
+        working-directory: .
+        run: |
+          su -
+          apt update && apt install -y --no-install-recommends ca-certificates curl
+          install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+          chmod a+r /etc/apt/keyrings/docker.asc
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+          apt-get update
+          apt-get install -y --no-install-recommends docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: 📦 Install protoc
+        working-directory: .
+        run: su - && apt update && apt install -y protobuf-compiler libprotobuf-dev
+
+      - name: Install Cartesi Machine
+        working-directory: .
+        run: | 
+          ARCH=$(dpkg --print-architecture)
+          curl -fsSL https://github.com/cartesi/machine-emulator/releases/download/v0.16.1/cartesi-machine-v0.16.1_${ARCH}.deb -o ./cartesi-machine.deb
+          su -
+          apt-get install -y ./cartesi-machine.deb
 
       - uses: depot/setup-action@v1
       - name: Build dependency images
@@ -46,8 +77,10 @@ jobs:
           workdir: build
           load: true
 
-      - name: 📦 Install protoc
-        run: sudo apt update && sudo apt install -y protobuf-compiler libprotobuf-dev
+      - name: Install Cargo
+        run: |
+          su -
+          apt install -y --no-install-recommends cargo
 
       - uses: actions/cache@v4
         with:
@@ -70,6 +103,30 @@ jobs:
 
       - name: Set sweep timestamp
         run: cargo sweep -s
+
+      # - name: Install OpenSSL
+      #   working-directory: .
+      #   run: |
+      #     su -
+      #     apt update && apt install -y --no-install-recommends wget build-essential libssl-dev
+      #     wget https://www.openssl.org/source/openssl-3.1.4.tar.gz
+      #     wget https://www.openssl.org/source/openssl-3.1.4.tar.gz.sha256
+      #     echo "$(cat openssl-3.1.4.tar.gz.sha256) openssl-3.1.4.tar.gz" | sha256sum --check
+      #     mkdir /opt/openssl
+      #     tar xvzf openssl-3.1.4.tar.gz --directory /opt/openssl
+      #     cd /opt/openssl/openssl-3.1.4/
+      #     ./config --prefix=/opt/openssl --openssldir=/opt/openssl/ssl
+      #     make
+      #     make install
+      #     echo "/opt/openssl/lib64" >> /etc/ld.so.conf.d/openssl.conf
+      #     ldconfig
+
+      - name: Install Rust Code dependencies
+        working-directory: .
+        run : |
+          su -
+          apt update
+          apt install -y --no-install-recommends pkg-config libssl-dev curl libpq5
 
       - name: Build binaries and tests
         run: cargo build --all-targets
@@ -102,76 +159,4 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: go test ./...
 
-  build_docker:
-    runs-on: ubuntu-22.04
-    needs:
-      - test
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Docker meta
-        id: docker_meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            name=ghcr.io/cartesi/rollups-node
-            name=docker.io/cartesi/rollups-node,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=ref,event=branch
-            type=ref,event=pr
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: depot/setup-action@v1
-      - name: Build and push docker image
-        id: docker_build
-        uses: depot/bake-action@v1
-        with:
-          files: |
-            ./docker-bake.hcl
-            ${{ steps.docker_meta.outputs.bake-file }}
-            ./docker-bake.platforms.hcl
-          targets: rollups-node
-          set: rollups-node.args.ROLLUPS_NODE_VERSION=${{ steps.docker_meta.outputs.version }}
-          push: true
-          project: ${{ vars.DEPOT_PROJECT }}
-          workdir: build
-
-  release:
-    needs: [test, build_docker]
-    runs-on: ubuntu-22.04
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Trim CHANGELOG.md
-        run: sed -e '0,/^##[^#]/d' -e '/^##[^#]/,$d' -i CHANGELOG.md
-
-      - name: Download GraphQL schema
-        uses: actions/download-artifact@v4
-        with:
-          name: graphql-schema
-
-      - name: Publish Github release
-        uses: softprops/action-gh-release@v2
-        with:
-          prerelease: true
-          body_path: CHANGELOG.md
-          files: schema.graphql
+  
